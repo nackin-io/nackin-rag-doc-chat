@@ -2,8 +2,8 @@
 
 AI-powered document Q&A — upload PDFs, ask questions, get cited answers using retrieval augmented generation.
 
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=flat-square)](https://rag-doc-chat.vercel.app)
-[![GitHub stars](https://img.shields.io/github/stars/nackin/rag-doc-chat?style=flat-square)](https://github.com/nackin/rag-doc-chat)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=flat-square)](https://rag-doc-chat-ten.vercel.app)
+[![GitHub stars](https://img.shields.io/github/stars/jktrolbot/nackin-rag-doc-chat?style=flat-square)](https://github.com/jktrolbot/nackin-rag-doc-chat)
 
 ![Next.js](https://img.shields.io/badge/Next.js_15-black?style=flat-square&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
@@ -65,7 +65,7 @@ AI-powered document Q&A — upload PDFs, ask questions, get cited answers using 
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/nackin/rag-doc-chat.git
+git clone https://github.com/jktrolbot/nackin-rag-doc-chat.git
 cd rag-doc-chat
 npm install
 ```
