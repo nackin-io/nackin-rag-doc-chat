@@ -23,7 +23,7 @@ describe("DropZone", () => {
     onUploadComplete.mockClear();
     vi.mocked(toast.success).mockClear();
     vi.mocked(toast.error).mockClear();
-    global.fetch = vi.fn();
+    global.fetch = vi.fn() as unknown as typeof fetch;
   });
 
   afterEach(() => {
