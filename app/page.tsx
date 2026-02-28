@@ -8,6 +8,15 @@ import { DropZone } from "@/components/upload/DropZone";
 import { DocumentList } from "@/components/documents/DocumentList";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import type { Document } from "@/types";
 
 export default function Home() {
@@ -15,6 +24,7 @@ export default function Home() {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [docsLoading, setDocsLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const selectedDoc = documents.find((d) => d.id === selectedDocId) ?? null;
 
@@ -45,8 +55,20 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [documents, fetchDocuments]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     const doc = documents.find((d) => d.id === id);
+    if (!doc) return;
+    setDeleteConfirm({ id, name: doc.name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { id, name } = deleteConfirm;
+    setDeleteConfirm(null);
+
+    // Capture doc before optimistic update for potential revert
+    const doc = documents.find((d) => d.id === id);
+
     // Optimistic update
     setDocuments((prev) => prev.filter((d) => d.id !== id));
     if (selectedDocId === id) setSelectedDocId(null);
@@ -57,7 +79,7 @@ export default function Home() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Delete failed");
       }
-      toast.success(`Deleted "${doc?.name ?? "document"}"`, { duration: 3000 });
+      toast.success(`Deleted "${name}"`, { duration: 3000 });
     } catch (err) {
       // Revert optimistic update
       if (doc) {
@@ -171,6 +193,30 @@ export default function Home() {
           </Card>
         </main>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete document?</DialogTitle>
+            <DialogDescription>
+              <span>
+                Are you sure you want to delete{" "}
+                <strong className="text-foreground">{deleteConfirm?.name}</strong>? This action
+                cannot be undone.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => void confirmDelete()}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
