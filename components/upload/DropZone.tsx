@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface DropZoneProps {
   onUploadComplete: () => void;
@@ -12,14 +12,12 @@ interface DropZoneProps {
 export function DropZone({ onUploadComplete }: DropZoneProps) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       const file = acceptedFiles[0];
       if (!file) return;
 
-      setError(null);
       setUploading(true);
       setProgress(10);
 
@@ -42,14 +40,16 @@ export function DropZone({ onUploadComplete }: DropZoneProps) {
         }
 
         setProgress(100);
+        toast.success(`"${file.name}" uploaded — processing chunks…`, { duration: 4000 });
         onUploadComplete();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Upload failed");
+        const msg = err instanceof Error ? err.message : "Upload failed";
+        toast.error(msg);
       } finally {
         setTimeout(() => {
           setUploading(false);
           setProgress(0);
-        }, 1000);
+        }, 800);
       }
     },
     [onUploadComplete]
@@ -64,43 +64,52 @@ export function DropZone({ onUploadComplete }: DropZoneProps) {
     onDropRejected: (rejections) => {
       const rejection = rejections[0];
       if (rejection?.errors[0]?.code === "file-too-large") {
-        setError("File size must be under 10MB");
+        toast.error("File size must be under 10MB");
       } else if (rejection?.errors[0]?.code === "file-invalid-type") {
-        setError("Only PDF files are accepted");
+        toast.error("Only PDF files are accepted");
       } else {
-        setError("Invalid file");
+        toast.error("Invalid file");
       }
     },
   });
 
   return (
-    <Card
+    <div
       {...getRootProps()}
       className={cn(
-        "relative cursor-pointer border-2 border-dashed p-6 text-center transition-colors",
-        isDragActive && "border-primary bg-primary/5",
-        uploading && "pointer-events-none opacity-60",
-        error && "border-destructive"
+        "relative cursor-pointer rounded-xl border-2 border-dashed p-5 text-center transition-all duration-200 select-none",
+        "hover:border-primary/50 hover:bg-primary/5",
+        isDragActive && "border-primary bg-primary/10 scale-[1.01]",
+        uploading && "pointer-events-none opacity-70",
+        !isDragActive && !uploading && "border-muted-foreground/25"
       )}
+      role="button"
+      aria-label="Upload PDF — drag and drop or click to browse"
     >
       <input {...getInputProps()} aria-label="Upload PDF file" />
 
       {uploading ? (
         <div className="space-y-3">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground border-t-primary" />
-          <p className="text-sm text-muted-foreground">Processing PDF...</p>
-          <div className="mx-auto h-2 w-48 overflow-hidden rounded-full bg-muted">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+          <p className="text-sm font-medium">Uploading…</p>
+          <div className="mx-auto h-1.5 w-full max-w-[160px] overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
+          <p className="text-xs text-muted-foreground">{progress}%</p>
         </div>
       ) : (
         <div className="space-y-2">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+          <div
+            className={cn(
+              "mx-auto flex h-10 w-10 items-center justify-center rounded-full transition-colors",
+              isDragActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            )}
+          >
             <svg
-              className="h-5 w-5 text-muted-foreground"
+              className="h-5 w-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -114,18 +123,14 @@ export function DropZone({ onUploadComplete }: DropZoneProps) {
               />
             </svg>
           </div>
-          <p className="text-sm font-medium">
-            {isDragActive ? "Drop your PDF here" : "Drag & drop a PDF, or click to select"}
-          </p>
-          <p className="text-xs text-muted-foreground">PDF only, max 10MB</p>
+          <div>
+            <p className="text-sm font-medium">
+              {isDragActive ? "Drop your PDF here" : "Drop PDF or click to upload"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">PDF only · max 10MB</p>
+          </div>
         </div>
       )}
-
-      {error && (
-        <p className="mt-2 text-xs text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-    </Card>
+    </div>
   );
 }

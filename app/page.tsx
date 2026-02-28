@@ -7,41 +7,72 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { DropZone } from "@/components/upload/DropZone";
 import { DocumentList } from "@/components/documents/DocumentList";
 import { ChatInterface } from "@/components/chat/ChatInterface";
+import { toast } from "sonner";
 import type { Document } from "@/types";
 
 export default function Home() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [docsLoading, setDocsLoading] = useState(true);
+
+  const selectedDoc = documents.find((d) => d.id === selectedDocId) ?? null;
 
   const fetchDocuments = useCallback(async () => {
     try {
       const res = await fetch("/api/documents");
       if (res.ok) {
-        const data = await res.json();
+        const data: Document[] = await res.json();
         setDocuments(data);
       }
     } catch {
       // silently fail — will retry on next poll
+    } finally {
+      setDocsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchDocuments();
-    const interval = setInterval(fetchDocuments, 5000);
-    return () => clearInterval(interval);
+    void fetchDocuments();
   }, [fetchDocuments]);
 
+  // Smart polling: only poll while there are processing documents
+  useEffect(() => {
+    const hasProcessing = documents.some((d) => d.status === "processing");
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => void fetchDocuments(), 3000);
+    return () => clearInterval(interval);
+  }, [documents, fetchDocuments]);
+
   const handleDelete = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    // Optimistic update
+    setDocuments((prev) => prev.filter((d) => d.id !== id));
+    if (selectedDocId === id) setSelectedDocId(null);
+
     try {
       const res = await fetch(`/api/documents/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setDocuments((prev) => prev.filter((d) => d.id !== id));
-        if (selectedDocId === id) setSelectedDocId(null);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Delete failed");
       }
-    } catch {
-      // silently fail
+      toast.success(`Deleted "${doc?.name ?? "document"}"`, { duration: 3000 });
+    } catch (err) {
+      // Revert optimistic update
+      if (doc) {
+        setDocuments((prev) => {
+          const exists = prev.some((d) => d.id === id);
+          return exists ? prev : [doc, ...prev];
+        });
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to delete document");
     }
+  };
+
+  const handleSelectDoc = (id: string | null) => {
+    setSelectedDocId(id);
+    if (window.innerWidth < 640) setSidebarOpen(false);
   };
 
   return (
@@ -50,9 +81,10 @@ export default function Home() {
       <header className="flex items-center justify-between border-b px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
           <button
-            className="sm:hidden"
+            className="rounded-md p-1 hover:bg-muted transition-colors sm:hidden"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label="Toggle sidebar"
+            aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+            aria-expanded={sidebarOpen}
           >
             <svg
               className="h-5 w-5"
@@ -69,16 +101,31 @@ export default function Home() {
               />
             </svg>
           </button>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">
-              RAG Document Chat
-            </h1>
-            <p className="hidden text-xs text-muted-foreground sm:block">
-              Upload PDFs and chat with your documents
-            </p>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-base font-semibold tracking-tight leading-tight">
+                RAG Document Chat
+              </h1>
+              <p className="hidden text-xs text-muted-foreground sm:block leading-tight">
+                AI-powered document intelligence
+              </p>
+            </div>
           </div>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          {documents.length > 0 && (
+            <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              {documents.filter(d => d.status === "ready").length} doc{documents.filter(d => d.status === "ready").length !== 1 ? "s" : ""} ready
+            </span>
+          )}
+          <ThemeToggle />
+        </div>
       </header>
 
       {/* Main content */}
@@ -94,27 +141,33 @@ export default function Home() {
           </div>
           <Separator />
           <div className="flex-1 overflow-hidden p-2">
-            <p className="px-2 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Documents
-            </p>
+            <div className="flex items-center justify-between px-2 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Documents
+              </p>
+              {documents.length > 0 && (
+                <span className="text-xs text-muted-foreground">{documents.length}</span>
+              )}
+            </div>
             <DocumentList
               documents={documents}
               selectedId={selectedDocId}
-              onSelect={(id) => {
-                setSelectedDocId(id);
-                if (window.innerWidth < 640) setSidebarOpen(false);
-              }}
+              onSelect={handleSelectDoc}
               onDelete={handleDelete}
+              isLoading={docsLoading}
             />
           </div>
         </aside>
 
         {/* Chat area */}
         <main
-          className={`${sidebarOpen ? "hidden sm:flex" : "flex"} flex-1 flex-col`}
+          className={`${sidebarOpen ? "hidden sm:flex" : "flex"} flex-1 flex-col overflow-hidden`}
         >
-          <Card className="flex flex-1 flex-col overflow-hidden rounded-none border-0">
-            <ChatInterface selectedDocumentId={selectedDocId} />
+          <Card className="flex flex-1 flex-col overflow-hidden rounded-none border-0 shadow-none">
+            <ChatInterface
+              selectedDocumentId={selectedDocId}
+              selectedDocumentName={selectedDoc?.name ?? null}
+            />
           </Card>
         </main>
       </div>
